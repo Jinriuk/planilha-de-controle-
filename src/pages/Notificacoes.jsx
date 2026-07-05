@@ -32,7 +32,7 @@ export default function Notificacoes() {
         .from('notifications')
         .select('*')
         .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
-        .neq('sender_id', user.id)
+        .or(`sender_id.neq.${user.id},sender_id.is.null`)
         .order('created_at', { ascending: false })
         .limit(200),
       supabase.from('notification_reads').select('notification_id').eq('user_id', user.id),

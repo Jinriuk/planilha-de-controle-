@@ -16,7 +16,8 @@ export function useUnreadCount(userId) {
         .from('notifications')
         .select('id')
         .or(`recipient_id.eq.${userId},recipient_id.is.null`)
-        .neq('sender_id', userId),
+        // sender nulo (aviso de sistema) também conta — neq puro descartaria NULL
+        .or(`sender_id.neq.${userId},sender_id.is.null`),
       supabase.from('notification_reads').select('notification_id').eq('user_id', userId),
     ])
     const lidas = new Set((reads || []).map((r) => r.notification_id))
