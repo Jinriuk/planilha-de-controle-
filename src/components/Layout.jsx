@@ -28,10 +28,13 @@ export default function Layout() {
           </div>
           <nav className="nav">
             <NavLink to="/app/planilha">Planilha</NavLink>
+            <NavLink to="/app/anexos">Anexos</NavLink>
+            <NavLink to="/app/parcelamentos">Parcelamentos</NavLink>
             <NavLink to="/app/notificacoes">
               Notificações
               {naoLidas > 0 && <span className="nav-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
+            {isAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {isAdmin && <NavLink to="/app/auditoria">Auditoria</NavLink>}
             {isAdmin && <NavLink to="/app/usuarios">Usuários</NavLink>}
           </nav>

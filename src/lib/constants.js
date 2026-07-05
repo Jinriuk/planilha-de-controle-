@@ -1,36 +1,61 @@
 // ─────────────────────────────────────────────────────────────────────────
-// Regras de negócio da planilha (portadas de controle_apuracao_online.html).
+// Regras de negócio — Gestão da Rotina do Departamento Fiscal
+// Atividades, documentos de anexo, status e cores (spec).
 // ─────────────────────────────────────────────────────────────────────────
 
 // [chave, label, categoria, fn_aplica(company)]
-// company.tipo: 'Serviços' | 'Comércio' | 'Comércio / Serviços'
-// company.iss/icms/sf/sc: booleans
+// Categorias: sol (Solicitação de Documentos) · imp (Importação de XMLs)
+//             obrig (Obrigações Fiscais) · parc (Parcelamentos)
+// fn_aplica dá só a *dica visual* de aplicabilidade — toda célula continua
+// editável e pode receber "Não se aplica".
+const temComercio = (c) => (c.tipo || '').includes('Comércio')
+const temServicos = (c) => (c.tipo || '').includes('Serviços')
+
 export const TAREFAS = [
-  ['nfe_ent', 'NFe Entrada', 'doc', () => true],
-  ['nfe_sai', 'NFe Saída', 'doc', (c) => (c.tipo || '').includes('Comércio')],
-  ['nf_tom', 'NF Serv Tomado', 'doc', (c) => (c.tipo || '').includes('Serviços')],
-  ['nf_pres', 'NF Serv Prestado', 'doc', (c) => (c.tipo || '').includes('Serviços')],
-  ['nfce', 'NFCe', 'doc', (c) => (c.tipo || '').includes('Comércio')],
-  ['fisco_sol', 'Fisco Fácil Solic', 'doc', () => true],
-  ['fisco_rec', 'Fisco Fácil Receb', 'doc', () => true],
-  ['iss_g', 'Guia ISS', 'guia', (c) => !!c.iss],
-  ['icms_g', 'Guia ICMS', 'guia', (c) => !!c.icms],
-  ['difal_g', 'Guia DIFAL', 'guia', (c) => !!c.icms],
-  ['pis_g', 'Guia PIS/COFINS', 'guia', (c) => !!c.sc],
-  ['parc_g', 'Guia Parcelamento', 'guia', () => true],
-  ['reinf', 'REINF', 'obrig', (c) => !!c.sc],
-  ['dctf', 'DCTF', 'obrig', (c) => !!c.sc],
-  ['efd_f', 'EFD Fiscal', 'obrig', (c) => !!c.sf],
-  ['efd_c', 'EFD Contribuições', 'obrig', (c) => !!c.sc],
-  ['fat', 'Rel. Faturamento', 'rel', () => true],
+  // Solicitação de documentos ao cliente
+  ['sol_xml_ent',   'XML NF Entrada',      'sol',   () => true],
+  ['sol_xml_sai',   'XML NF Saída',        'sol',   temComercio],
+  ['sol_xml_serv',  'XML NF Serviço',      'sol',   temServicos],
+  ['sol_xml_cupom', 'XML Cupom Fiscal',    'sol',   temComercio],
+  ['sol_xml_cte',   'XML CT-e',            'sol',   () => true],
+  // Importação de documentos fiscais
+  ['imp_xml_ent',   'XML NF Entrada',      'imp',   () => true],
+  ['imp_xml_sai',   'XML NF Saída',        'imp',   temComercio],
+  ['imp_xml_sp',    'XML Serv. Prestado',  'imp',   temServicos],
+  ['imp_xml_st',    'XML Serv. Tomado',    'imp',   temServicos],
+  ['imp_xml_cupom', 'XML Cupom Fiscal',    'imp',   temComercio],
+  ['imp_xml_cte',   'XML CT-e',            'imp',   () => true],
+  // Obrigações fiscais
+  ['reinf',         'REINF',               'obrig', (c) => !!c.sc],
+  ['efd_f',         'EFD Fiscal',          'obrig', (c) => !!c.sf],
+  ['efd_c',         'EFD Contribuições',   'obrig', (c) => !!c.sc],
+  ['dctf',          'DCTF',                'obrig', (c) => !!c.sc],
+  ['mit',           'MIT',                 'obrig', () => true],
+  // Parcelamentos
+  ['parc_envio',    'Envio guias parc.',   'parc',  () => true],
 ]
 
-// Mapa rápido chave -> label
-export const TASK_LABEL = Object.fromEntries(TAREFAS.map((t) => [t[0], t[1]]))
+// Labels antigos (dados/auditoria de versões anteriores) + atuais.
+export const TASK_LABEL = {
+  ...Object.fromEntries(TAREFAS.map((t) => [t[0], t[1]])),
+  // legado (v1)
+  nfe_ent: 'NFe Entrada (v1)', nfe_sai: 'NFe Saída (v1)', nf_tom: 'NF Serv Tomado (v1)',
+  nf_pres: 'NF Serv Prestado (v1)', nfce: 'NFCe (v1)', fisco_sol: 'Fisco Fácil Solic (v1)',
+  fisco_rec: 'Fisco Fácil Receb (v1)', iss_g: 'Guia ISS (v1)', icms_g: 'Guia ICMS (v1)',
+  difal_g: 'Guia DIFAL (v1)', pis_g: 'Guia PIS/COFINS (v1)', parc_g: 'Guia Parcelamento (v1)',
+  fat: 'Rel. Faturamento (v1)',
+}
 
-// Ciclo de estados: '' → andamento → feito → na → ''
+// ── Ciclo de estados (valores do banco) e labels do spec ──
+// '' = Não iniciado · andamento = Em andamento · feito = Finalizado · na = Não se aplica
 export const CICLO = ['', 'andamento', 'feito', 'na']
-export const CICLO_LABEL = { '': '', andamento: '⏳ Andamento', feito: '✅ Feito', na: '—  N/A' }
+export const CICLO_LABEL = {
+  '': 'Não iniciado',
+  andamento: 'Em andamento',
+  feito: 'Finalizado',
+  na: 'Não se aplica',
+}
+export const CICLO_LABEL_CURTO = { '': '—', andamento: '⏳ Andamento', feito: '✅ Finalizado', na: 'N/A' }
 export const CICLO_CLS = {
   '': 'st-vazio',
   andamento: 'st-andamento',
@@ -39,18 +64,53 @@ export const CICLO_CLS = {
 }
 
 export const CAT_HDR = {
-  doc: 'th-grupo-doc',
-  guia: 'th-grupo-guia',
+  sol: 'th-grupo-doc',
+  imp: 'th-grupo-imp',
   obrig: 'th-grupo-obrig',
-  rel: 'th-grupo-rel',
+  parc: 'th-grupo-guia',
 }
 export const CAT_LABEL = {
-  doc: 'Solicitação de Documentos XML',
-  guia: 'Guias de Pagamento',
-  obrig: 'Obrigações Acessórias',
-  rel: 'Relatório',
+  sol: 'Solicitação de Documentos',
+  imp: 'Importação de XMLs',
+  obrig: 'Obrigações Fiscais',
+  parc: 'Parcelamentos',
 }
 
+// ── Documentos do Controle de Anexos ──
+export const DOCS_ANEXOS = [
+  ['rel_nfs_p',      'Rel. NFS Prestado',      'rel'],
+  ['rel_nfs_t',      'Rel. NFS Tomado',        'rel'],
+  ['guia_iss',       'Guia de ISS',            'guia'],
+  ['reg_icms',       'Reg. Apuração ICMS',     'apur'],
+  ['guia_icms',      'Guia de ICMS',           'guia'],
+  ['apur_piscofins', 'Apuração PIS/COFINS',    'apur'],
+  ['guia_piscofins', 'Guia PIS/COFINS',        'guia'],
+  ['rec_efd_f',      'Recibo EFD Fiscal',      'rec'],
+  ['rec_efd_c',      'Recibo EFD Contrib.',    'rec'],
+  ['rec_reinf',      'Recibo REINF',           'rec'],
+  ['rec_dctf',       'Recibo DCTF',            'rec'],
+  ['rec_mit',        'Recibo MIT',             'rec'],
+  ['guias_parc',     'Guias Parcelamento',     'guia'],
+]
+export const DOC_LABEL = Object.fromEntries(DOCS_ANEXOS.map((d) => [d[0], d[1]]))
+export const DOC_CAT_LABEL = {
+  rel: 'Relatórios', guia: 'Guias', apur: 'Apurações', rec: 'Recibos',
+}
+export const DOC_CAT_HDR = {
+  rel: 'th-grupo-rel', guia: 'th-grupo-guia', apur: 'th-grupo-imp', rec: 'th-grupo-obrig',
+}
+
+// ── Status de parcelamento ──
+export const PARC_STATUS = ['ativo', 'quitado', 'suspenso', 'cancelado']
+export const PARC_STATUS_LABEL = {
+  ativo: 'Ativo', quitado: 'Quitado', suspenso: 'Suspenso', cancelado: 'Cancelado',
+}
+export const PARC_STATUS_CLS = {
+  ativo: 'chip-para-andamento', quitado: 'chip-para-feito',
+  suspenso: 'chip-de', cancelado: 'chip-para-vazio',
+}
+
+// ── Períodos ──
 export const PERIODOS_2026 = [
   '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06',
   '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12',
@@ -69,6 +129,8 @@ export function periodoLabel(p) {
   return `${MESES[parseInt(mes, 10) - 1]} ${ano}`
 }
 
+export const PERIODO_ATUAL = '2026-06'
+
 export const CORES_AVATAR = [
   '#2E5FA3', '#15803d', '#b45309', '#6d28d9', '#b91c1c', '#0e7490', '#065f46',
 ]
@@ -84,35 +146,71 @@ export function iniciais(nome) {
   return nome.trim()[0].toUpperCase()
 }
 
-// Tarefas aplicáveis a uma empresa.
+// ── Agregação de status por empresa ──
 export function tarefasAplicaveis(company) {
   return TAREFAS.filter((t) => t[3](company))
 }
 
-// Status agregado de uma empresa dado o mapa de valores { task_key: valor }.
-// Espelha a lógica do HTML: baseado em quantas tarefas aplicáveis estão 'feito'.
+// Progresso considera Finalizado + Não se aplica como resolvidos.
 export function statusEmpresa(company, valores) {
   const aplicaveis = tarefasAplicaveis(company)
   const total = aplicaveis.length
   const feitos = aplicaveis.filter((t) => (valores[t[0]] || '') === 'feito').length
-  const pct = total ? Math.round((feitos / total) * 100) : 100
+  const nas = aplicaveis.filter((t) => (valores[t[0]] || '') === 'na').length
+  const resolvidos = feitos + nas
+  const pct = total ? Math.round((resolvidos / total) * 100) : 100
   let st
-  if (total === 0) st = 'N/A'
-  else if (feitos === total) st = 'Concluído'
-  else if (feitos === 0) st = 'Não iniciado'
+  if (total === 0) st = 'Não se aplica'
+  else if (resolvidos === total) st = 'Finalizado'
+  else if (aplicaveis.every((t) => !(valores[t[0]] || ''))) st = 'Não iniciado'
   else st = 'Em andamento'
-  return { total, feitos, pct, st }
+  return { total, feitos, nas, resolvidos, pct, st }
 }
 
+// Cores do spec: vermelho / amarelo / verde / cinza
 export const STATUS_CORES = {
-  Concluído: '#15803d',
+  Finalizado: '#15803d',
   'Em andamento': '#b45309',
-  'Não iniciado': '#6d28d9',
-  'N/A': '#9ca3af',
+  'Não iniciado': '#b91c1c',
+  'Não se aplica': '#6b7280',
 }
 export const STATUS_CLS = {
-  Concluído: 'sc-ok',
+  Finalizado: 'sc-ok',
   'Em andamento': 'sc-and',
   'Não iniciado': 'sc-new',
-  'N/A': 'sc-na',
+  'Não se aplica': 'sc-na',
+}
+
+// ── Datas / prazos ──
+export function hojeISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+// vencida = prazo passou e não está Finalizado/N-A
+export function atividadeVencida(cell) {
+  if (!cell?.prazo) return false
+  const st = cell.valor || ''
+  if (st === 'feito' || st === 'na') return false
+  return cell.prazo < hojeISO()
+}
+
+// próxima do prazo = vence em até N dias
+export function atividadeProxima(cell, dias = 3) {
+  if (!cell?.prazo) return false
+  const st = cell.valor || ''
+  if (st === 'feito' || st === 'na') return false
+  const hoje = hojeISO()
+  if (cell.prazo < hoje) return false
+  const lim = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10)
+  return cell.prazo <= lim
+}
+
+export function fmtData(iso) {
+  if (!iso) return '—'
+  const [a, m, d] = iso.split('-')
+  return `${d}/${m}/${a}`
+}
+
+export function fmtMoeda(v) {
+  return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }

@@ -1,0 +1,25 @@
+// Cálculos automáticos de parcelamentos (módulo puro — usado no app e no relatório).
+import { hojeISO } from './constants.js'
+
+export function calcParcelamento(p) {
+  const qtd = Number(p.qtd_parcelas) || 0
+  const pagas = Math.min(Number(p.parcelas_pagas) || 0, qtd)
+  const valorParcela = Number(p.valor_parcela) || 0
+  const valorTotal = Number(p.valor_total) || 0
+  const pendentes = Math.max(qtd - pagas, 0)
+  const valorPago = pagas * valorParcela
+  const saldo = Math.max(pendentes * valorParcela, 0)
+  const pct = qtd > 0 ? Math.round((pagas / qtd) * 100) : 0
+  return { pendentes, valorPago, saldo, pct, pagas, qtd, valorParcela, valorTotal }
+}
+
+export function vencimentoProximo(p, dias = 7) {
+  if (!p.proximo_vencimento || p.status !== 'ativo') return false
+  const lim = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10)
+  return p.proximo_vencimento >= hojeISO() && p.proximo_vencimento <= lim
+}
+
+export function vencimentoAtrasado(p) {
+  if (!p.proximo_vencimento || p.status !== 'ativo') return false
+  return p.proximo_vencimento < hojeISO()
+}

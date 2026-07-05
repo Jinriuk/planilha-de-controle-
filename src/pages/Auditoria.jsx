@@ -9,7 +9,7 @@ const PERIODO_PADRAO = '2026-06'
 const POR_PAGINA = 50
 
 // Rótulos de valor para a auditoria
-const VAL_TXT = { '': 'Vazio', andamento: 'Andamento', feito: 'Feito', na: 'N/A' }
+const VAL_TXT = { '': 'Não iniciado', andamento: 'Em andamento', feito: 'Finalizado', na: 'Não se aplica' }
 const VAL_CHIP = { '': 'chip-para-vazio', andamento: 'chip-para-andamento', feito: 'chip-para-feito', na: 'chip-para-na' }
 
 function valTxt(v) {
@@ -83,7 +83,7 @@ export default function Auditoria() {
     companies.forEach((c) => {
       const vmap = porEmpresa[c.cod] || {}
       const { st, total } = statusEmpresa(c, vmap)
-      if (total > 0 && st === 'Concluído') empresas100++
+      if (total > 0 && st === 'Finalizado') empresas100++
     })
 
     // operador com mais tarefas concluídas (eventos feito no período)
@@ -219,8 +219,8 @@ export default function Auditoria() {
                   <label className="ctrl-label">Tipo:</label>
                   <select value={fTipo} onChange={(e) => { setFTipo(e.target.value); setPagina(1) }}>
                     <option value="">Todos</option>
-                    <option value="iniciado">Iniciado</option>
-                    <option value="concluido">Concluído</option>
+                    <option value="iniciado">Iniciado (Em andamento)</option>
+                    <option value="concluido">Finalizado</option>
                     <option value="na">N/A</option>
                     <option value="desmarcado">Desmarcado</option>
                   </select>

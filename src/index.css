@@ -102,6 +102,7 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
 table.planilha { min-width: 1600px; }
 
 .th-grupo-doc { background: #1a4a7a; color: #fff; }
+.th-grupo-imp { background: #0e7490; color: #fff; }
 .th-grupo-guia { background: #7f1d1d; color: #fff; }
 .th-grupo-obrig { background: #14532d; color: #fff; }
 .th-grupo-rel { background: #4c1d95; color: #fff; }
@@ -146,12 +147,29 @@ td.td-grp { font-size: 10px; }
 .cel.disabled { cursor: default; opacity: .8; }
 .cel.disabled:hover { filter: none; transform: none; }
 
-.st-vazio { background: #f1f5f9; color: #cbd5e1; border: 1.5px dashed #cbd5e1; }
+/* Formatação condicional do spec:
+   vermelho = Não iniciado · amarelo = Em andamento · verde = Finalizado · cinza = N/A */
+.st-vazio { background: #fee2e2; color: #b91c1c; border: 1.5px dashed #fca5a5; }
 .st-andamento { background: #fef9c3; color: #92400e; border: 1.5px solid #fcd34d; }
 .st-feito { background: #dcfce7; color: #15803d; border: 1.5px solid #86efac; }
 .st-na { background: #f3f4f6; color: #9ca3af; border: 1.5px solid #e5e7eb; }
-.cel-naoaplic.st-vazio { background: #f8fafc; border-style: dotted; opacity: .65; }
+.cel-naoaplic.st-vazio { background: #fdf7f7; border-style: dotted; opacity: .55; }
 .cel-naoaplic.st-vazio:hover { opacity: 1; }
+
+/* Alertas de prazo */
+.cel-vencida { box-shadow: 0 0 0 2px #dc2626; position: relative; }
+.cel-proxima { box-shadow: 0 0 0 2px #f59e0b; }
+.alert-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+  border-radius: 8px; padding: 8px 14px; margin: 10px 16px 0;
+  font-size: 12px; font-weight: 600;
+}
+.alert-bar.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.cel-meta {
+  display: block; font-size: 8px; font-weight: 600; margin-top: 2px; opacity: .85;
+}
+.cel-link { font-size: 10px; text-decoration: none; }
 
 /* ── STATUS FINAL ── */
 .status-chip {
@@ -160,7 +178,7 @@ td.td-grp { font-size: 10px; }
 }
 .sc-ok { background: #dcfce7; color: #15803d; }
 .sc-and { background: #fef9c3; color: #92400e; }
-.sc-new { background: var(--roxo2); color: var(--roxo); }
+.sc-new { background: #fee2e2; color: #b91c1c; }
 .sc-na { background: var(--cinza2); color: var(--cinza); }
 
 .prog-bar-bg {
@@ -314,3 +332,40 @@ td.td-grp { font-size: 10px; }
 .modal p { font-size: 12px; color: var(--cinza); margin-bottom: 18px; }
 
 .full-center { min-height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+
+/* ── FORM (modais de detalhe) ── */
+.field select, .field textarea {
+  width: 100%; border: 1.5px solid var(--cinza3); border-radius: 8px;
+  padding: 9px 12px; font-size: 13px; font-family: inherit; outline: none; background: #fff;
+}
+.field select:focus, .field textarea:focus { border-color: var(--azul2); }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+.modal.lg { max-width: 480px; }
+
+/* ── DASHBOARD ── */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.viz-root {
+  --surface-1: #ffffff;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid-hair: #e1e0d9;
+  --serie-azul: #2a78d6;
+  background: var(--surface-1); border: 1px solid var(--cinza3); border-radius: 10px;
+  padding: 14px 16px;
+}
+.viz-title { font-size: 12px; font-weight: 700; color: var(--azul); margin-bottom: 10px; }
+.hbar-row { display: grid; grid-template-columns: 130px 1fr 46px; align-items: center; gap: 8px; margin-bottom: 6px; }
+.hbar-label {
+  font-size: 11px; color: var(--text-secondary); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-align: right;
+}
+.hbar-track { height: 14px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 4px 3px 3px 4px; min-width: 2px; }
+.hbar-val { font-size: 11px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.card-alerta { border-left: 4px solid #dc2626; }
+.card-alerta-warn { border-left: 4px solid #f59e0b; }
+.card .card-value.vermelho { color: #b91c1c; }
+.card .card-value.verde { color: #15803d; }
+.card .card-value.ambar { color: #b45309; }
