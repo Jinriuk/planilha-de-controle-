@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePresence } from '../hooks/usePresence'
+import { useUnreadCount } from '../hooks/useUnreadCount'
 import { corAvatar, iniciais } from '../lib/constants'
 import OnlineUsers from './OnlineUsers'
 
@@ -8,6 +9,7 @@ export default function Layout() {
   const { user, profile, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const online = usePresence(user, profile)
+  const { count: naoLidas } = useUnreadCount(user?.id)
 
   const nome = profile?.nome || user?.email || ''
 
@@ -26,6 +28,10 @@ export default function Layout() {
           </div>
           <nav className="nav">
             <NavLink to="/app/planilha">Planilha</NavLink>
+            <NavLink to="/app/notificacoes">
+              Notificações
+              {naoLidas > 0 && <span className="nav-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>}
+            </NavLink>
             {isAdmin && <NavLink to="/app/auditoria">Auditoria</NavLink>}
             {isAdmin && <NavLink to="/app/usuarios">Usuários</NavLink>}
           </nav>

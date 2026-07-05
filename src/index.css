@@ -52,6 +52,11 @@ a { color: inherit; }
 }
 .nav a:hover { background: rgba(255, 255, 255, .12); color: #fff; }
 .nav a.active { background: rgba(255, 255, 255, .18); color: #fff; }
+.nav-badge {
+  display: inline-block; margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 9px; background: #ef4444; color: #fff; font-size: 9px; font-weight: 800;
+  line-height: 16px; text-align: center; vertical-align: middle;
+}
 
 /* ── BARRA CONTROLES ── */
 .barra {

@@ -19,6 +19,15 @@ export default function Usuarios() {
   const [inviteBusy, setInviteBusy] = useState(false)
   const [inviteMsg, setInviteMsg] = useState(null)
 
+  // criar operador com senha
+  const [showCreate, setShowCreate] = useState(false)
+  const [cNome, setCNome] = useState('')
+  const [cEmail, setCEmail] = useState('')
+  const [cCargo, setCCargo] = useState('')
+  const [cSenha, setCSenha] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createMsg, setCreateMsg] = useState(null)
+
   async function carregar() {
     const [p, pr] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: true }),
@@ -72,6 +81,43 @@ export default function Usuarios() {
     carregar()
   }
 
+  // Extrai a mensagem de erro do corpo da resposta da Edge Function.
+  async function erroFn(error, data) {
+    if (data?.error) return data.error
+    try { const j = await error.context.json(); if (j?.error) return j.error } catch { /* ignore */ }
+    return error.message
+  }
+
+  async function criarOperador(e) {
+    e.preventDefault()
+    setCreateMsg(null)
+    const email = cEmail.trim().toLowerCase()
+    if (!email) return setCreateMsg({ ok: false, txt: 'Informe o e-mail.' })
+    if (cSenha.length < 6) return setCreateMsg({ ok: false, txt: 'A senha deve ter ao menos 6 caracteres.' })
+    setCreateBusy(true)
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'create', email, password: cSenha, nome: cNome.trim(), cargo: cCargo.trim() },
+    })
+    setCreateBusy(false)
+    if (error) return setCreateMsg({ ok: false, txt: 'Falha: ' + (await erroFn(error, data)) })
+    setCreateMsg({ ok: true, txt: `Operador criado! ${email} já pode entrar com a senha definida.` })
+    setCNome(''); setCEmail(''); setCCargo(''); setCSenha('')
+    carregar()
+  }
+
+  async function resetarSenha(p) {
+    const novaSenha = window.prompt(`Nova senha para ${p.nome || p.email} (mín. 6 caracteres):`)
+    if (novaSenha == null) return
+    if (novaSenha.length < 6) return toast('A senha deve ter ao menos 6 caracteres')
+    setBusy(p.id)
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'set_password', user_id: p.id, password: novaSenha },
+    })
+    setBusy(null)
+    if (error) return toast('Erro: ' + (await erroFn(error, data)))
+    toast('Senha atualizada')
+  }
+
   const ordenados = useMemo(
     () => [...profiles].sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, 'pt-BR')),
     [profiles]
@@ -81,7 +127,10 @@ export default function Usuarios() {
     <div className="page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
         <div className="page-title" style={{ margin: 0 }}>Usuários</div>
-        <button className="btn btn-prim" onClick={() => { setShowInvite(true); setInviteMsg(null) }}>+ Convidar novo usuário</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-grn" onClick={() => { setShowCreate(true); setCreateMsg(null) }}>+ Criar operador (com senha)</button>
+          <button className="btn btn-sec" onClick={() => { setShowInvite(true); setInviteMsg(null) }}>✉ Convidar por e-mail</button>
+        </div>
       </div>
 
       {loading ? (
@@ -122,6 +171,9 @@ export default function Usuarios() {
                           <button className={`btn ${p.ativo === false ? 'btn-grn' : 'btn-danger'}`} disabled={eu || busy === p.id} onClick={() => alterarAtivo(p)}>
                             {p.ativo === false ? 'Reativar' : 'Desativar'}
                           </button>
+                          <button className="btn btn-sec" disabled={busy === p.id} onClick={() => resetarSenha(p)}>
+                            🔑 Senha
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -130,6 +182,36 @@ export default function Usuarios() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowCreate(false) }}>
+          <form className="modal" onSubmit={criarOperador}>
+            <h2>Criar operador</h2>
+            <p>Cria o acesso já com senha — o operador entra na hora, sem precisar de e-mail de convite.</p>
+            {createMsg && <div className={createMsg.ok ? 'auth-ok' : 'auth-error'}>{createMsg.txt}</div>}
+            <div className="field">
+              <label htmlFor="cnome">Nome</label>
+              <input id="cnome" value={cNome} onChange={(e) => setCNome(e.target.value)} placeholder="Nome do operador" maxLength={60} autoFocus />
+            </div>
+            <div className="field">
+              <label htmlFor="cemail">E-mail (login)</label>
+              <input id="cemail" type="email" value={cEmail} onChange={(e) => setCEmail(e.target.value)} placeholder="operador@escritorio.com" required />
+            </div>
+            <div className="field">
+              <label htmlFor="ccargo">Cargo (opcional)</label>
+              <input id="ccargo" value={cCargo} onChange={(e) => setCCargo(e.target.value)} placeholder="Ex: Analista fiscal" maxLength={60} />
+            </div>
+            <div className="field">
+              <label htmlFor="csenha">Senha de acesso</label>
+              <input id="csenha" type="text" value={cSenha} onChange={(e) => setCSenha(e.target.value)} placeholder="Mínimo 6 caracteres" required />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-sec" onClick={() => setShowCreate(false)}>Fechar</button>
+              <button type="submit" className="btn btn-grn" disabled={createBusy}>{createBusy ? 'Criando...' : 'Criar operador'}</button>
+            </div>
+          </form>
         </div>
       )}
 
