@@ -25,6 +25,7 @@ export default function Anexos() {
   const [busca, setBusca] = useState('')
   const [fStatus, setFStatus] = useState('')
   const [detalhe, setDetalhe] = useState(null) // { company, docKey }
+  const clickTimer = useRef(null)
 
   const docsRef = useRef(docs)
   docsRef.current = docs
@@ -94,6 +95,17 @@ export default function Anexos() {
     const ok = await salvar(company, docKey, { status: prox })
     if (ok) toast(`${CICLO_LABEL[prox]} — salvo!`)
   }, [salvar, toast])
+
+  // Clique com atraso: duplo clique cancela o ciclo e abre o modal de link/obs.
+  const cellClick = useCallback((company, docKey) => {
+    clearTimeout(clickTimer.current)
+    clickTimer.current = setTimeout(() => handleClick(company, docKey), 230)
+  }, [handleClick])
+
+  const cellDetail = useCallback((company, docKey) => {
+    clearTimeout(clickTimer.current)
+    setDetalhe({ company, docKey })
+  }, [])
 
   const filtradas = useMemo(() => {
     const q = busca.toLowerCase()
@@ -210,8 +222,8 @@ export default function Anexos() {
                   return (
                     <td key={d[0]}>
                       <span className={`cel ${CICLO_CLS[st]}`}
-                        onClick={() => handleClick(c, d[0])}
-                        onDoubleClick={(e) => { e.preventDefault(); setDetalhe({ company: c, docKey: d[0] }) }}
+                        onClick={() => cellClick(c, d[0])}
+                        onDoubleClick={(e) => { e.preventDefault(); cellDetail(c, d[0]) }}
                         title={dicas.join('\n')}>
                         {st ? CICLO_LABEL[st] : ''}
                         {cell?.link && (

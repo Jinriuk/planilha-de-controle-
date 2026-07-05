@@ -45,7 +45,9 @@ a { color: inherit; }
 /* ── NAV (abas) ── */
 .nav {
   display: flex; align-items: center; gap: 2px; margin-left: 18px;
+  overflow-x: auto; scrollbar-width: none;
 }
+.nav::-webkit-scrollbar { display: none; }
 .nav a {
   color: #bcd3f0; font-size: 12px; font-weight: 600; text-decoration: none;
   padding: 6px 12px; border-radius: 6px; transition: .15s; white-space: nowrap;

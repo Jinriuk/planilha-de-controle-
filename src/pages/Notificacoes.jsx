@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
@@ -15,6 +15,9 @@ export default function Notificacoes() {
   const [lidas, setLidas] = useState(new Set())
   const [enviadas, setEnviadas] = useState([])
   const [operadores, setOperadores] = useState([])
+  const [readCounts, setReadCounts] = useState({})
+  // ids que chegaram não-lidos nesta sessão — mantêm o selo "novo" visível
+  const novasSessao = useRef(new Set())
 
   // form (admin)
   const [dest, setDest] = useState('todos')
@@ -46,8 +49,21 @@ export default function Notificacoes() {
     setRecebidas(res[0].data || [])
     setLidas(new Set((res[1].data || []).map((r) => r.notification_id)))
     if (isAdmin) {
-      setEnviadas(res[2].data || [])
+      const sent = res[2].data || []
+      setEnviadas(sent)
       setOperadores((res[3].data || []).filter((p) => p.role === 'operator'))
+      // recibos de leitura das enviadas (policy "admin read all reads")
+      if (sent.length) {
+        const { data: rds } = await supabase
+          .from('notification_reads')
+          .select('notification_id')
+          .in('notification_id', sent.map((n) => n.id))
+        const m = {}
+        ;(rds || []).forEach((r) => { m[r.notification_id] = (m[r.notification_id] || 0) + 1 })
+        setReadCounts(m)
+      } else {
+        setReadCounts({})
+      }
     }
     setLoading(false)
   }, [user.id, isAdmin])
@@ -61,11 +77,13 @@ export default function Notificacoes() {
     return () => supabase.removeChannel(canal)
   }, [carregar])
 
-  // Marca como lidas as recebidas ainda não lidas (limpa o badge).
+  // Marca como lidas as não lidas (limpa o badge), mas preserva o selo "novo"
+  // durante a sessão para o usuário perceber o que acabou de chegar.
   useEffect(() => {
     if (loading) return
     const naoLidas = recebidas.filter((n) => !lidas.has(n.id))
     if (naoLidas.length === 0) return
+    naoLidas.forEach((n) => novasSessao.current.add(n.id))
     const rows = naoLidas.map((n) => ({ notification_id: n.id, user_id: user.id }))
     supabase
       .from('notification_reads')
@@ -155,7 +173,7 @@ export default function Notificacoes() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {recebidas.map((n) => (
-            <NotifCard key={n.id} n={n} novo={!lidas.has(n.id)} />
+            <NotifCard key={n.id} n={n} novo={!lidas.has(n.id) || novasSessao.current.has(n.id)} />
           ))}
         </div>
       )}
@@ -170,7 +188,7 @@ export default function Notificacoes() {
               <div style={{ overflowX: 'auto' }}>
                 <table>
                   <thead>
-                    <tr><th>Quando</th><th>Para</th><th>Tipo</th><th>Título</th><th>Mensagem</th></tr>
+                    <tr><th>Quando</th><th>Para</th><th>Tipo</th><th>Título</th><th>Mensagem</th><th>Leituras</th></tr>
                   </thead>
                   <tbody>
                     {enviadas.map((n) => (
@@ -180,6 +198,11 @@ export default function Notificacoes() {
                         <td>{n.tipo === 'tarefa' ? '✅ Tarefa' : '💬 Mensagem'}</td>
                         <td>{n.titulo || '—'}</td>
                         <td>{n.mensagem}</td>
+                        <td>
+                          {readCounts[n.id]
+                            ? <span className="chip chip-para-feito">✓ {readCounts[n.id]} leu{readCounts[n.id] > 1 ? 'ram' : ''}</span>
+                            : <span className="chip chip-de">não lida</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

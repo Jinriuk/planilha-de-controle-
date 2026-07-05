@@ -32,6 +32,7 @@ export default function Planilha() {
   const [soVencidas, setSoVencidas] = useState(false)
 
   const [detalhe, setDetalhe] = useState(null) // { company, taskKey }
+  const clickTimer = useRef(null)
 
   const valoresRef = useRef(valores)
   valoresRef.current = valores
@@ -191,6 +192,18 @@ export default function Planilha() {
     const ok = await salvarCelula(company, taskKey, { valor: prox })
     if (ok) toast(`${CICLO_LABEL[prox]} — salvo!`)
   }, [salvarCelula, toast])
+
+  // Espera 230ms antes de ciclar: se vier o duplo clique, cancela e abre os
+  // detalhes SEM mudar o status (senão o duplo clique avançaria o status 2x).
+  const cellClick = useCallback((company, taskKey) => {
+    clearTimeout(clickTimer.current)
+    clickTimer.current = setTimeout(() => handleClick(company, taskKey), 230)
+  }, [handleClick])
+
+  const cellDetail = useCallback((company, taskKey) => {
+    clearTimeout(clickTimer.current)
+    setDetalhe({ company, taskKey })
+  }, [])
 
   // ── Filtros ──
   const grupos = useMemo(
@@ -402,8 +415,8 @@ export default function Planilha() {
             <tbody>
               {filtradas.map((c, idx) => (
                 <LinhaEmpresa key={c.cod} idx={idx} company={c} valores={valores}
-                  resp={resp[c.cod]} onClick={handleClick}
-                  onDetalhe={(taskKey) => setDetalhe({ company: c, taskKey })} />
+                  resp={resp[c.cod]} onClick={cellClick}
+                  onDetalhe={(taskKey) => cellDetail(c, taskKey)} />
               ))}
             </tbody>
           </table>

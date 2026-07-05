@@ -79,8 +79,9 @@ export default function Login() {
         </button>
 
         <p className="hint" style={{ marginTop: 16, marginBottom: 0 }}>
-          O acesso é por convite. Se você recebeu um link de convite por e-mail,
-          clique nele para criar sua senha.
+          O acesso é criado pelo administrador do escritório.
+          Esqueceu a senha? Peça ao administrador para redefinir em
+          <strong> Usuários → 🔑 Senha</strong>.
         </p>
       </form>
     </div>
