@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllRows } from '../lib/supabase'
 import Spinner from '../components/Spinner'
 import {
-  TASK_LABEL, PERIODOS_2026, PERIODOS_2025, periodoLabel, statusEmpresa,
+  TASK_LABEL, PERIODOS_ANO_ATUAL, PERIODOS_ANO_ANT, ANO_ATUAL, ANO_ANT,
+  periodoLabel, statusEmpresa, PERIODO_ATUAL,
 } from '../lib/constants'
 
-const PERIODO_PADRAO = '2026-06'
 const POR_PAGINA = 50
 
 // Rótulos de valor para a auditoria
@@ -26,7 +26,7 @@ const TIPO_MUDANCA = {
 }
 
 export default function Auditoria() {
-  const [periodo, setPeriodo] = useState(PERIODO_PADRAO)
+  const [periodo, setPeriodo] = useState(PERIODO_ATUAL)
   const [loading, setLoading] = useState(true)
   const [companies, setCompanies] = useState([])
   const [apuracao, setApuracao] = useState([])
@@ -49,8 +49,10 @@ export default function Auditoria() {
     setLoading(true)
     setPagina(1)
     Promise.all([
-      supabase.from('apuracao').select('company_cod, task_key, valor, updated_by_nome').eq('periodo', periodo),
-      supabase.from('audit_log').select('*').eq('periodo', periodo).order('ts', { ascending: false }).limit(10000),
+      fetchAllRows((sb) => sb.from('apuracao').select('company_cod, task_key, valor, updated_by_nome')
+        .eq('periodo', periodo).order('company_cod', { ascending: true }).order('task_key', { ascending: true })),
+      fetchAllRows((sb) => sb.from('audit_log').select('*')
+        .eq('periodo', periodo).order('ts', { ascending: false }).order('id', { ascending: false })),
       supabase.from('responsavel_empresa').select('company_cod, user_nome, started_at').eq('periodo', periodo),
     ]).then(([ap, lg, re]) => {
       if (!active) return
@@ -162,11 +164,11 @@ export default function Auditoria() {
   const seletorPeriodo = (
     <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
       style={{ fontWeight: 700, color: 'var(--azul)', borderColor: 'var(--azul2)', padding: '5px 10px', borderRadius: 6, border: '1px solid var(--cinza3)' }}>
-      <optgroup label="── 2026 ──">
-        {PERIODOS_2026.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+      <optgroup label={`── ${ANO_ATUAL} ──`}>
+        {PERIODOS_ANO_ATUAL.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
       </optgroup>
-      <optgroup label="── 2025 ──">
-        {PERIODOS_2025.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+      <optgroup label={`── ${ANO_ANT} ──`}>
+        {PERIODOS_ANO_ANT.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
       </optgroup>
     </select>
   )

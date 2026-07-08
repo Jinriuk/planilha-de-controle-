@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllRows } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import Spinner from '../components/Spinner'
 import {
   TAREFAS, CICLO, CICLO_LABEL, CICLO_CLS, CAT_HDR, CAT_LABEL,
-  PERIODOS_2026, PERIODOS_2025, periodoLabel, PERIODO_ATUAL,
+  PERIODOS_ANO_ATUAL, PERIODOS_ANO_ANT, ANO_ATUAL, ANO_ANT, periodoLabel, PERIODO_ATUAL,
   corAvatar, statusEmpresa, STATUS_CORES, STATUS_CLS,
   atividadeVencida, atividadeProxima, hojeISO, fmtData,
 } from '../lib/constants'
 
 const POLL_MS = 20_000
+// Janela em que uma escrita otimista fica protegida contra o polling que releu
+// o banco antes do commit. Curta: passado isso, confia-se no banco (evita que
+// um pendente "encalhe" e mascare para sempre a edição de outra pessoa).
+const PENDING_GRACE_MS = 4_000
 const vkey = (cod, task) => `${cod}__${task}`
 
 export default function Planilha() {
@@ -32,12 +36,24 @@ export default function Planilha() {
   const [soVencidas, setSoVencidas] = useState(false)
 
   const [detalhe, setDetalhe] = useState(null) // { company, taskKey }
-  const clickTimer = useRef(null)
+  // Clique pendente aguardando distinção de duplo-clique: { cod, task, timer }.
+  const clickPend = useRef(null)
 
   const valoresRef = useRef(valores)
   valoresRef.current = valores
   const respRef = useRef(resp)
   respRef.current = resp
+  // Escritas otimistas ainda não confirmadas: protegem a edição em voo do
+  // polling/realtime que releu o banco antes do commit. Cada pendente tem um
+  // timer de expiração (grace) para NUNCA mascarar para sempre o valor real.
+  const pendingWrites = useRef(new Map()) // k -> célula otimista
+  const pendingTimers = useRef(new Map()) // k -> timeout id
+  const dropPending = useCallback((k) => {
+    const t = pendingTimers.current.get(k)
+    if (t) clearTimeout(t)
+    pendingTimers.current.delete(k)
+    pendingWrites.current.delete(k)
+  }, [])
 
   const nome = profile?.nome || user?.email || ''
 
@@ -60,15 +76,25 @@ export default function Planilha() {
   const carregarPeriodo = useCallback(async (per, showSpinner = false) => {
     if (showSpinner) setLoading(true)
     const [ap, re] = await Promise.all([
-      supabase
-        .from('apuracao')
-        .select('company_cod, task_key, valor, updated_by_nome, updated_at, responsavel_nome, prazo, data_conclusao, observacoes')
-        .eq('periodo', per),
-      supabase
-        .from('responsavel_empresa')
-        .select('company_cod, user_nome, started_at')
-        .eq('periodo', per),
+      fetchAllRows((sb) =>
+        sb.from('apuracao')
+          .select('company_cod, task_key, valor, updated_by_nome, updated_at, responsavel_nome, prazo, data_conclusao, observacoes')
+          .eq('periodo', per)
+          .order('company_cod', { ascending: true })
+          .order('task_key', { ascending: true }) // desempate único p/ paginação estável
+      ),
+      fetchAllRows((sb) =>
+        sb.from('responsavel_empresa')
+          .select('company_cod, user_nome, started_at')
+          .eq('periodo', per)
+          .order('company_cod', { ascending: true })
+      ),
     ])
+    if (ap.error || re.error) {
+      toast('Erro ao carregar o período')
+      setLoading(false)
+      return
+    }
     const vmap = {}
     for (const r of ap.data || []) {
       vmap[vkey(r.company_cod, r.task_key)] = {
@@ -81,12 +107,16 @@ export default function Planilha() {
         observacoes: r.observacoes,
       }
     }
+    // Sobrepõe as edições otimistas ainda dentro da janela de grace (protege a
+    // edição em voo). Fora da grace o pendente já foi descartado pelo timer, e
+    // o valor do banco — inclusive uma alteração feita por outra pessoa — vale.
+    for (const [k, v] of pendingWrites.current) vmap[k] = v
     const rmap = {}
     for (const r of re.data || []) rmap[r.company_cod] = { user_nome: r.user_nome, started_at: r.started_at }
     setValores(vmap)
     setResp(rmap)
     setLoading(false)
-  }, [])
+  }, [toast])
 
   useEffect(() => { carregarPeriodo(periodo, true) }, [periodo, carregarPeriodo])
 
@@ -100,6 +130,9 @@ export default function Planilha() {
           const row = payload.new?.company_cod ? payload.new : payload.old
           if (!row) return
           const k = vkey(row.company_cod, row.task_key)
+          // Não mexe no pendente aqui: o timer de grace (curto) é quem o expira.
+          // Enquanto durar a grace, o polling reaplica a edição em voo; passada
+          // a grace, o valor do banco (inclusive de outra pessoa) prevalece.
           setValores((prev) => {
             if (payload.eventType === 'DELETE') {
               const cp = { ...prev }; delete cp[k]; return cp
@@ -127,7 +160,15 @@ export default function Planilha() {
         })
       .subscribe()
     const poll = setInterval(() => carregarPeriodo(periodo), POLL_MS)
-    return () => { supabase.removeChannel(canal); clearInterval(poll) }
+    return () => {
+      supabase.removeChannel(canal)
+      clearInterval(poll)
+      // Troca de período/desmontagem: descarta pendentes (as chaves não têm
+      // período, então não poderiam vazar para outro mês).
+      for (const t of pendingTimers.current.values()) clearTimeout(t)
+      pendingTimers.current.clear()
+      pendingWrites.current.clear()
+    }
   }, [periodo, carregarPeriodo])
 
   // ── Persistência de uma célula (status e/ou detalhes) ──
@@ -142,7 +183,12 @@ export default function Planilha() {
       if (patch.valor === '') novo.data_conclusao = null
     }
 
-    const novoMapa = { ...valoresRef.current, [k]: { ...novo, nome, at: new Date().toISOString() } }
+    const optimistic = { ...novo, nome, at: new Date().toISOString() }
+    pendingWrites.current.set(k, optimistic)
+    const prevT = pendingTimers.current.get(k)
+    if (prevT) clearTimeout(prevT)
+    pendingTimers.current.set(k, setTimeout(() => dropPending(k), PENDING_GRACE_MS))
+    const novoMapa = { ...valoresRef.current, [k]: optimistic }
     setValores(novoMapa)
 
     const { error } = await supabase.from('apuracao').upsert(
@@ -163,6 +209,7 @@ export default function Planilha() {
       { onConflict: 'company_cod,task_key,periodo' }
     )
     if (error) {
+      dropPending(k)
       toast('Erro ao salvar — recarregando')
       carregarPeriodo(periodo)
       return false
@@ -183,7 +230,7 @@ export default function Planilha() {
       )
     }
     return true
-  }, [periodo, user, nome, toast, carregarPeriodo])
+  }, [periodo, user, nome, toast, carregarPeriodo, dropPending])
 
   // Clique simples: cicla o status
   const handleClick = useCallback(async (company, taskKey) => {
@@ -195,13 +242,20 @@ export default function Planilha() {
 
   // Espera 230ms antes de ciclar: se vier o duplo clique, cancela e abre os
   // detalhes SEM mudar o status (senão o duplo clique avançaria o status 2x).
+  // Ao clicar em OUTRA célula antes dos 230ms, descarrega o clique anterior na
+  // hora — assim cliques em células diferentes nunca se perdem.
   const cellClick = useCallback((company, taskKey) => {
-    clearTimeout(clickTimer.current)
-    clickTimer.current = setTimeout(() => handleClick(company, taskKey), 230)
+    const pend = clickPend.current
+    if (pend) {
+      clearTimeout(pend.timer)
+      if (pend.cod !== company.cod || pend.task !== taskKey) handleClick(pend.company, pend.task)
+    }
+    const timer = setTimeout(() => { clickPend.current = null; handleClick(company, taskKey) }, 230)
+    clickPend.current = { cod: company.cod, task: taskKey, company, timer }
   }, [handleClick])
 
   const cellDetail = useCallback((company, taskKey) => {
-    clearTimeout(clickTimer.current)
+    if (clickPend.current) { clearTimeout(clickPend.current.timer); clickPend.current = null }
     setDetalhe({ company, taskKey })
   }, [])
 
@@ -307,11 +361,11 @@ export default function Planilha() {
           <label className="ctrl-label">Competência:</label>
           <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
             style={{ fontWeight: 700, color: 'var(--azul)', borderColor: 'var(--azul2)' }}>
-            <optgroup label="── 2026 ──">
-              {PERIODOS_2026.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ATUAL} ──`}>
+              {PERIODOS_ANO_ATUAL.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
-            <optgroup label="── 2025 ──">
-              {PERIODOS_2025.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ANT} ──`}>
+              {PERIODOS_ANO_ANT.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
           </select>
         </div>

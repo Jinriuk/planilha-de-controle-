@@ -97,10 +97,15 @@ continua funcionando via **polling a cada 20s** (planilha) e 10s (presença).
 
 ---
 
-## 5. Edge Function `invite-user`
+## 5. Edge Functions (`invite-user` e `admin-users`)
 
-O convite usa a `service_role key`, que **nunca** pode ir para o frontend (§13.2).
-Por isso ele roda numa Edge Function que valida se quem chama é admin.
+As duas usam a `service_role key`, que **nunca** pode ir para o frontend (§13.2).
+Por isso rodam em Edge Functions que validam se quem chama é admin.
+
+- `invite-user` — convite por e-mail.
+- `admin-users` — criar operador com senha, resetar senha e
+  ativar/desativar acesso (`set_active`, que **bane/desbane no Auth** para
+  revogar os tokens de quem foi desativado).
 
 ```bash
 # secrets (a URL e a anon key já são injetadas pelo runtime; defina a service role):
@@ -109,8 +114,9 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<sua_service_role_key>
 # opcional: para onde o link de convite redireciona (recomendado apontar p/ /onboarding)
 supabase secrets set INVITE_REDIRECT_TO=https://SEU-APP.vercel.app/onboarding
 
-# deploy
+# deploy das duas functions
 supabase functions deploy invite-user
+supabase functions deploy admin-users
 ```
 
 Configure também, em **Authentication → URL Configuration**, a *Site URL* e as
@@ -185,11 +191,10 @@ função `is_admin()` (SECURITY DEFINER) para evitar recursão no RLS (§13.5).
 ├── scripts/generate-seed.mjs      # gera supabase/seed.sql
 ├── supabase/
 │   ├── migrations/
-│   │   ├── 0001_schema.sql
-│   │   ├── 0002_functions_triggers.sql
-│   │   └── 0003_rls.sql
+│   │   ├── 0001_schema.sql .. 0008_performance.sql
+│   │   └── 0009_hardening_prod.sql   # auditoria imutável, is_active, checks
 │   ├── seed.sql
-│   └── functions/invite-user/index.ts
+│   └── functions/{invite-user,admin-users}/index.ts
 └── src/
     ├── main.jsx / App.jsx          # bootstrap + rotas
     ├── index.css                   # estilos globais (portados do HTML)
@@ -213,3 +218,30 @@ função `is_admin()` (SECURITY DEFINER) para evitar recursão no RLS (§13.5).
 - Limpeza do responsável segue a regra do §8.1 ("todas as tarefas voltam a vazio"),
   ligeiramente diferente da leitura literal do §6.3, para não apagar o responsável
   enquanto ainda há tarefas ativas.
+
+---
+
+## 12. Checklist de produção
+
+Endurecimentos já aplicados (migration `0009_hardening_prod.sql`):
+
+- **Auditoria à prova de forjaria:** removida a policy que deixava qualquer
+  autenticado inserir linhas em `audit_log`. A trilha só é escrita pelo trigger
+  (imutável).
+- **Desativar usuário tem efeito imediato:** as tabelas operacionais
+  (`apuracao`, `anexos`, `parcelamentos`, `responsavel_empresa`) exigem
+  `is_active()`; um operador desativado perde leitura/escrita na hora, mesmo com
+  o token ainda válido. A tela Usuários também **revoga os tokens** no Auth.
+- **Integridade de parcelamentos:** checks de valores não-negativos e
+  `parcelas_pagas ≤ qtd_parcelas`.
+
+Passo manual recomendado (Dashboard do Supabase, não vai no código):
+
+- **Authentication → Providers → Password:** ligue *Leaked password protection*
+  (checagem no HaveIBeenPwned) e, se quiser, um comprimento mínimo de senha
+  maior que 6.
+
+Por design (modelo de confiança "todo autenticado é da equipe"): operadores
+ativos podem editar planilha, anexos e parcelamentos. As leituras grandes
+(planilha/dashboard/auditoria) são **paginadas** no cliente, então não sofrem o
+corte de 1000 linhas do PostgREST conforme o volume cresce.

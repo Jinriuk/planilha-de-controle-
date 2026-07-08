@@ -57,9 +57,13 @@ export default function Usuarios() {
     const novo = !p.ativo
     if (!window.confirm(`${novo ? 'Reativar' : 'Desativar'} o acesso de ${p.nome || p.email}?`)) return
     setBusy(p.id)
-    const { error } = await supabase.from('profiles').update({ ativo: novo }).eq('id', p.id)
+    // Via edge function (service_role): revoga/reautoriza os tokens no Auth além
+    // de atualizar profiles.ativo — desativar tem efeito imediato de verdade.
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'set_active', user_id: p.id, active: novo },
+    })
     setBusy(null)
-    if (error) return toast('Erro: ' + error.message)
+    if (error) return toast('Erro: ' + (await erroFn(error, data)))
     toast(novo ? 'Usuário reativado' : 'Usuário desativado')
     carregar()
   }

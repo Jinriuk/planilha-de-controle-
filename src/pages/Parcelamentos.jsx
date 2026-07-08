@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllRows } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import Spinner from '../components/Spinner'
 import {
   PARC_STATUS, PARC_STATUS_LABEL, PARC_STATUS_CLS,
-  fmtMoeda, fmtData,
+  fmtMoeda, fmtData, safeUrl,
 } from '../lib/constants'
 import { calcParcelamento, vencimentoProximo, vencimentoAtrasado } from '../lib/parc'
 
@@ -29,10 +29,12 @@ export default function Parcelamentos() {
 
   const carregar = useCallback(async (spin = false) => {
     if (spin) setLoading(true)
-    const { data } = await supabase
-      .from('parcelamentos')
-      .select('*')
-      .order('proximo_vencimento', { ascending: true, nullsFirst: false })
+    const { data } = await fetchAllRows((sb) =>
+      sb.from('parcelamentos')
+        .select('*')
+        .order('proximo_vencimento', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true })
+    )
     setLista(data || [])
     setLoading(false)
   }, [])
@@ -79,12 +81,13 @@ export default function Parcelamentos() {
   }, [lista])
 
   async function salvar(form, id) {
+    const qtd = Math.max(0, Number(form.qtd_parcelas) || 0)
     const payload = {
       ...form,
-      valor_total: Number(form.valor_total) || 0,
-      qtd_parcelas: Number(form.qtd_parcelas) || 0,
-      valor_parcela: Number(form.valor_parcela) || 0,
-      parcelas_pagas: Number(form.parcelas_pagas) || 0,
+      valor_total: Math.max(0, Number(form.valor_total) || 0),
+      qtd_parcelas: qtd,
+      valor_parcela: Math.max(0, Number(form.valor_parcela) || 0),
+      parcelas_pagas: Math.max(0, Math.min(Number(form.parcelas_pagas) || 0, qtd)),
       proximo_vencimento: form.proximo_vencimento || null,
       link_guias: form.link_guias?.trim() || null,
       observacoes: form.observacoes?.trim() || null,
@@ -180,7 +183,7 @@ export default function Parcelamentos() {
                       {atrasado ? '⚠ ' : proximo ? '⏰ ' : ''}{fmtData(p.proximo_vencimento)}
                     </td>
                     <td><span className={`chip ${PARC_STATUS_CLS[p.status]}`}>{PARC_STATUS_LABEL[p.status]}</span></td>
-                    <td>{p.link_guias ? <a href={p.link_guias} target="_blank" rel="noreferrer" title={p.link_guias}>🔗</a> : '—'}</td>
+                    <td>{safeUrl(p.link_guias) ? <a href={safeUrl(p.link_guias)} target="_blank" rel="noreferrer" title={p.link_guias}>🔗</a> : '—'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sec" onClick={() => setModal(p)}>✎ Editar</button>
