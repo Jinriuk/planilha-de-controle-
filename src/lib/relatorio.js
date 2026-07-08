@@ -4,7 +4,7 @@
 // gerarRelatorioPDF(data) abre a janela de impressão.
 // ─────────────────────────────────────────────────────────────────────────
 import {
-  CAT_LABEL, tarefasAplicaveis, periodoLabel, fmtMoeda, fmtData,
+  CAT_LABEL, tarefasAplicaveis, statusEmpresa, periodoLabel, fmtMoeda, fmtData,
 } from './constants.js'
 import { calcParcelamento, vencimentoProximo, vencimentoAtrasado } from './parc.js'
 
@@ -72,11 +72,11 @@ export function buildRelatorioHTML({ periodo, companies, apuracao, parcelamentos
   apuracao.forEach((r) => { vmap[`${r.company_cod}__${r.task_key}`] = r.valor || '' })
   const clientes = ativas
     .map((c) => {
-      const aplicaveis = tarefasAplicaveis(c)
-      const total = aplicaveis.length
-      const res = aplicaveis.filter((t) => ['feito', 'na'].includes(vmap[`${c.cod}__${t[0]}`] || '')).length
-      const pct = total ? Math.round((res / total) * 100) : 100
-      const st = total === 0 ? 'Não se aplica' : res === total ? 'Finalizado' : res === 0 ? 'Não iniciado' : 'Em andamento'
+      // Mesma regra de statusEmpresa do app: "Não iniciado" só quando TODAS as
+      // tarefas aplicáveis estão vazias — senão é "Em andamento".
+      const vc = {}
+      for (const t of tarefasAplicaveis(c)) vc[t[0]] = vmap[`${c.cod}__${t[0]}`] || ''
+      const { total, resolvidos: res, pct, st } = statusEmpresa(c, vc)
       return { cod: c.cod, empresa: c.empresa, grupo: c.grupo, total, res, pct, st }
     })
     .sort((a, b) => a.pct - b.pct || b.total - a.total)

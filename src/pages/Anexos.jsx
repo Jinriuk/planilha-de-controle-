@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllRows } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import Spinner from '../components/Spinner'
 import {
   DOCS_ANEXOS, DOC_CAT_LABEL, DOC_CAT_HDR,
   CICLO, CICLO_LABEL, CICLO_CLS,
-  PERIODOS_2026, PERIODOS_2025, periodoLabel, PERIODO_ATUAL,
+  PERIODOS_ANO_ATUAL, PERIODOS_ANO_ANT, ANO_ATUAL, ANO_ANT, periodoLabel, PERIODO_ATUAL,
+  safeUrl,
 } from '../lib/constants'
 
 const POLL_MS = 25_000
@@ -25,7 +26,7 @@ export default function Anexos() {
   const [busca, setBusca] = useState('')
   const [fStatus, setFStatus] = useState('')
   const [detalhe, setDetalhe] = useState(null) // { company, docKey }
-  const clickTimer = useRef(null)
+  const clickPend = useRef(null)
 
   const docsRef = useRef(docs)
   docsRef.current = docs
@@ -38,10 +39,14 @@ export default function Anexos() {
 
   const carregar = useCallback(async (per, spin = false) => {
     if (spin) setLoading(true)
-    const { data } = await supabase
-      .from('anexos')
-      .select('company_cod, doc_key, status, link, observacoes, updated_by_nome, updated_at')
-      .eq('periodo', per)
+    const { data, error } = await fetchAllRows((sb) =>
+      sb.from('anexos')
+        .select('company_cod, doc_key, status, link, observacoes, updated_by_nome, updated_at')
+        .eq('periodo', per)
+        .order('company_cod', { ascending: true })
+        .order('doc_key', { ascending: true }) // desempate único p/ paginação estável
+    )
+    if (error) { toast('Erro ao carregar anexos'); setLoading(false); return }
     const m = {}
     for (const r of data || []) {
       m[akey(r.company_cod, r.doc_key)] = {
@@ -51,7 +56,7 @@ export default function Anexos() {
     }
     setDocs(m)
     setLoading(false)
-  }, [])
+  }, [toast])
 
   useEffect(() => { carregar(periodo, true) }, [periodo, carregar])
 
@@ -97,13 +102,19 @@ export default function Anexos() {
   }, [salvar, toast])
 
   // Clique com atraso: duplo clique cancela o ciclo e abre o modal de link/obs.
+  // Clicar em outra célula antes dos 230ms descarrega o clique anterior na hora.
   const cellClick = useCallback((company, docKey) => {
-    clearTimeout(clickTimer.current)
-    clickTimer.current = setTimeout(() => handleClick(company, docKey), 230)
+    const pend = clickPend.current
+    if (pend) {
+      clearTimeout(pend.timer)
+      if (pend.cod !== company.cod || pend.doc !== docKey) handleClick(pend.company, pend.doc)
+    }
+    const timer = setTimeout(() => { clickPend.current = null; handleClick(company, docKey) }, 230)
+    clickPend.current = { cod: company.cod, doc: docKey, company, timer }
   }, [handleClick])
 
   const cellDetail = useCallback((company, docKey) => {
-    clearTimeout(clickTimer.current)
+    if (clickPend.current) { clearTimeout(clickPend.current.timer); clickPend.current = null }
     setDetalhe({ company, docKey })
   }, [])
 
@@ -154,11 +165,11 @@ export default function Anexos() {
           <label className="ctrl-label">Competência:</label>
           <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
             style={{ fontWeight: 700, color: 'var(--azul)', borderColor: 'var(--azul2)' }}>
-            <optgroup label="── 2026 ──">
-              {PERIODOS_2026.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ATUAL} ──`}>
+              {PERIODOS_ANO_ATUAL.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
-            <optgroup label="── 2025 ──">
-              {PERIODOS_2025.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ANT} ──`}>
+              {PERIODOS_ANO_ANT.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
           </select>
         </div>
@@ -226,9 +237,9 @@ export default function Anexos() {
                         onDoubleClick={(e) => { e.preventDefault(); cellDetail(c, d[0]) }}
                         title={dicas.join('\n')}>
                         {st ? CICLO_LABEL[st] : ''}
-                        {cell?.link && (
+                        {safeUrl(cell?.link) && (
                           <span className="cel-meta">
-                            <a className="cel-link" href={cell.link} target="_blank" rel="noreferrer"
+                            <a className="cel-link" href={safeUrl(cell.link)} target="_blank" rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}>🔗 abrir</a>
                           </span>
                         )}
@@ -296,7 +307,7 @@ function AnexoModal({ company, docKey, cell, onClose, onSave }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          {link && <a className="btn btn-sec" href={link} target="_blank" rel="noreferrer" style={{ marginRight: 'auto', textDecoration: 'none' }}>🔗 Abrir arquivo</a>}
+          {safeUrl(link) && <a className="btn btn-sec" href={safeUrl(link)} target="_blank" rel="noreferrer" style={{ marginRight: 'auto', textDecoration: 'none' }}>🔗 Abrir arquivo</a>}
           <button type="button" className="btn btn-sec" onClick={onClose}>Cancelar</button>
           <button type="submit" className="btn btn-prim" disabled={busy}>{busy ? 'Salvando...' : 'Salvar'}</button>
         </div>

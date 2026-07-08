@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllRows } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import Spinner from '../components/Spinner'
 import {
   TAREFAS, DOCS_ANEXOS, tarefasAplicaveis,
-  PERIODOS_2026, PERIODOS_2025, periodoLabel, PERIODO_ATUAL,
+  PERIODOS_ANO_ATUAL, PERIODOS_ANO_ANT, ANO_ATUAL, ANO_ANT, periodoLabel, PERIODO_ATUAL,
   fmtMoeda, atividadeVencida, atividadeProxima,
 } from '../lib/constants'
 import { calcParcelamento, vencimentoProximo, vencimentoAtrasado } from '../lib/parc'
@@ -43,11 +43,22 @@ export default function Dashboard() {
     if (spin) setLoading(true)
     const [c, ap, hist, ax, pc] = await Promise.all([
       supabase.from('companies').select('*'),
-      supabase.from('apuracao')
+      fetchAllRows((sb) => sb.from('apuracao')
         .select('company_cod, task_key, valor, updated_by_nome, responsavel_nome, prazo, data_conclusao')
-        .eq('periodo', periodo),
-      supabase.from('apuracao').select('periodo, company_cod, task_key, valor').in('periodo', periodos6),
-      supabase.from('anexos').select('company_cod, doc_key, status').eq('periodo', periodo),
+        .eq('periodo', periodo)
+        .order('company_cod', { ascending: true })
+        .order('task_key', { ascending: true })),
+      fetchAllRows((sb) => sb.from('apuracao')
+        .select('periodo, company_cod, task_key, valor')
+        .in('periodo', periodos6)
+        .order('periodo', { ascending: true })
+        .order('company_cod', { ascending: true })
+        .order('task_key', { ascending: true })),
+      fetchAllRows((sb) => sb.from('anexos')
+        .select('company_cod, doc_key, status')
+        .eq('periodo', periodo)
+        .order('company_cod', { ascending: true })
+        .order('doc_key', { ascending: true })),
       supabase.from('parcelamentos').select('*'),
     ])
     setCompanies(c.data || [])
@@ -196,11 +207,11 @@ export default function Dashboard() {
           <span className="ctrl-label">Competência:</span>
           <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
             style={{ fontWeight: 700, color: 'var(--azul)', border: '1px solid var(--azul2)', borderRadius: 6, padding: '5px 10px' }}>
-            <optgroup label="── 2026 ──">
-              {PERIODOS_2026.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ATUAL} ──`}>
+              {PERIODOS_ANO_ATUAL.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
-            <optgroup label="── 2025 ──">
-              {PERIODOS_2025.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
+            <optgroup label={`── ${ANO_ANT} ──`}>
+              {PERIODOS_ANO_ANT.map((p) => <option key={p} value={p}>{periodoLabel(p)}</option>)}
             </optgroup>
           </select>
           <button className="btn btn-grn" onClick={baixarRelatorio} disabled={gerandoPdf}>
@@ -286,8 +297,8 @@ function HBarChart({ rows, max, cor, sufixo = '' }) {
   const m = Math.max(max, 1)
   return (
     <div>
-      {rows.map((r) => (
-        <div className="hbar-row" key={r.label} title={`${r.label}: ${r.valor}${r.sufixo ?? sufixo}`}>
+      {rows.map((r, i) => (
+        <div className="hbar-row" key={i} title={`${r.label}: ${r.valor}${r.sufixo ?? sufixo}`}>
           <div className="hbar-label">{r.label}</div>
           <div className="hbar-track">
             <div className="hbar-fill" style={{ width: `${Math.round((r.valor / m) * 100)}%`, background: cor }} />

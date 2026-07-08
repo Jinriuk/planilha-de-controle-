@@ -59,7 +59,7 @@ export default function Onboarding() {
     if (pErr) return setError(pErr.message)
 
     const updated = await refreshProfile()
-    navigate(updated?.role === 'admin' ? '/app/planilha' : '/app/planilha', { replace: true })
+    navigate(updated?.role === 'admin' ? '/app/dashboard' : '/app/planilha', { replace: true })
   }
 
   return (

@@ -7,8 +7,10 @@
 // POST body:
 //   { action: 'create',       email, password, nome?, cargo? }
 //   { action: 'set_password',  user_id, password }
+//   { action: 'set_active',    user_id, active }
 //
 // 'create' cria o usuário já confirmado (login imediato) como operator.
+// 'set_active' bane/desbane no Auth (revoga tokens) e reflete em profiles.ativo.
 // ─────────────────────────────────────────────────────────────────────────
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -97,5 +99,22 @@ Deno.serve(async (req) => {
     return json({ ok: true })
   }
 
-  return json({ error: 'action inválida (use create | set_password)' }, 400)
+  if (action === 'set_active') {
+    const userId = String(body.user_id ?? '')
+    const active = body.active === true
+    if (!userId) return json({ error: 'user_id obrigatório' }, 400)
+    if (userId === userData.user.id) return json({ error: 'Você não pode alterar o próprio acesso' }, 400)
+
+    // Bane (revoga emissão de novos tokens) ao desativar; desbane ao reativar.
+    const { error: bErr } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: active ? 'none' : '876000h', // ~100 anos
+    })
+    if (bErr) return json({ error: bErr.message }, 400)
+
+    const { error: pErr } = await admin.from('profiles').update({ ativo: active }).eq('id', userId)
+    if (pErr) return json({ error: pErr.message }, 400)
+    return json({ ok: true })
+  }
+
+  return json({ error: 'action inválida (use create | set_password | set_active)' }, 400)
 })

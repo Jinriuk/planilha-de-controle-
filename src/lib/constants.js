@@ -111,25 +111,38 @@ export const PARC_STATUS_CLS = {
 }
 
 // ── Períodos ──
-export const PERIODOS_2026 = [
-  '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06',
-  '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12',
-]
-export const PERIODOS_2025 = [
-  '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06',
-  '2025-07', '2025-08', '2025-09', '2025-10', '2025-11', '2025-12',
-]
 export const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
+
+function periodosDoAno(ano) {
+  return Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, '0')}`)
+}
+
+// Ano corrente e anterior calculados dinamicamente — evita listas hardcoded que
+// ficam obsoletas na virada do ano (competências sempre presentes no seletor).
+export const ANO_ATUAL = new Date().getFullYear()
+export const ANO_ANT = ANO_ATUAL - 1
+export const PERIODOS_ANO_ATUAL = periodosDoAno(ANO_ATUAL)
+export const PERIODOS_ANO_ANT = periodosDoAno(ANO_ANT)
 
 export function periodoLabel(p) {
   const [ano, mes] = p.split('-')
   return `${MESES[parseInt(mes, 10) - 1]} ${ano}`
 }
 
-export const PERIODO_ATUAL = '2026-06'
+// Competência padrão = mês anterior ao atual (no departamento fiscal, em julho
+// trabalha-se a apuração de junho). Dinâmico: nunca fica preso a um mês fixo e
+// rola corretamente na virada de ano.
+export function periodoCompetenciaAtual(hoje = new Date()) {
+  const ano = hoje.getFullYear()
+  const mes = hoje.getMonth() // 0-11 (mês atual); mês anterior = getMonth() (1-based do mês anterior)
+  if (mes === 0) return `${ano - 1}-12`
+  return `${ano}-${String(mes).padStart(2, '0')}`
+}
+
+export const PERIODO_ATUAL = periodoCompetenciaAtual()
 
 export const CORES_AVATAR = [
   '#2E5FA3', '#15803d', '#b45309', '#6d28d9', '#b91c1c', '#0e7490', '#065f46',
@@ -142,8 +155,23 @@ export function corAvatar(nome) {
 }
 
 export function iniciais(nome) {
-  if (!nome) return '?'
-  return nome.trim()[0].toUpperCase()
+  const t = (nome || '').trim()
+  if (!t) return '?'
+  return t[0].toUpperCase()
+}
+
+// Só permite links http(s) para renderizar em <a href>. Bloqueia vetores de
+// XSS armazenado (ex.: 'javascript:...') que um usuário poderia gravar via API
+// e que executariam ao serem clicados por um admin. Retorna null se inseguro.
+export function safeUrl(url) {
+  if (!url) return null
+  const s = String(url).trim()
+  try {
+    const u = new URL(s)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? s : null
+  } catch {
+    return null
+  }
 }
 
 // ── Agregação de status por empresa ──
@@ -182,8 +210,16 @@ export const STATUS_CLS = {
 }
 
 // ── Datas / prazos ──
+// Formata uma Date como 'YYYY-MM-DD' no fuso LOCAL do navegador (Brasil, UTC-3).
+// Usar toISOString() aqui seria bug: à noite (após 21h BRT) a data UTC já é o dia
+// seguinte, marcando prazos como vencidos um dia antes e gravando data_conclusao
+// adiantada.
+export function localISO(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function hojeISO() {
-  return new Date().toISOString().slice(0, 10)
+  return localISO()
 }
 
 // vencida = prazo passou e não está Finalizado/N-A
@@ -201,7 +237,7 @@ export function atividadeProxima(cell, dias = 3) {
   if (st === 'feito' || st === 'na') return false
   const hoje = hojeISO()
   if (cell.prazo < hoje) return false
-  const lim = new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10)
+  const lim = localISO(new Date(Date.now() + dias * 86400000))
   return cell.prazo <= lim
 }
 
