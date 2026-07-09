@@ -21,6 +21,11 @@ export default function Anexos() {
 
   const [companies, setCompanies] = useState([])
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL)
+  // Espelho do período p/ descartar respostas obsoletas de fetch/poll (mesma
+  // proteção da Planilha: sem isso, um clique logo após trocar a competência
+  // ciclaria o status a partir dos dados do período antigo).
+  const periodoRef = useRef(periodo)
+  periodoRef.current = periodo
   const [docs, setDocs] = useState({}) // { cod__doc: {status, link, observacoes, nome, at} }
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
@@ -46,6 +51,7 @@ export default function Anexos() {
         .order('company_cod', { ascending: true })
         .order('doc_key', { ascending: true }) // desempate único p/ paginação estável
     )
+    if (per !== periodoRef.current) return // resposta obsoleta: usuário já trocou de competência
     if (error) { toast('Erro ao carregar anexos'); setLoading(false); return }
     const m = {}
     for (const r of data || []) {
@@ -135,10 +141,13 @@ export default function Anexos() {
     let pendentes = 0
     let anexados = 0
     companies.forEach((c) => {
+      const inativa = c.ativo === false
       DOCS_ANEXOS.forEach((d) => {
         const st = docs[akey(c.cod, d[0])]?.status || ''
+        // 'anexados' conta trabalho feito (inclusive de quem SAIU depois);
+        // 'pendentes' só empresas ativas — coerente com o Dashboard.
         if (st === 'feito') anexados++
-        else if (st !== 'na') pendentes++
+        else if (st !== 'na' && !inativa) pendentes++
       })
     })
     return { pendentes, anexados }
@@ -237,12 +246,16 @@ export default function Anexos() {
                         onDoubleClick={(e) => { e.preventDefault(); cellDetail(c, d[0]) }}
                         title={dicas.join('\n')}>
                         {st ? CICLO_LABEL[st] : ''}
-                        {safeUrl(cell?.link) && (
+                        {cell?.link && (safeUrl(cell.link) ? (
                           <span className="cel-meta">
                             <a className="cel-link" href={safeUrl(cell.link)} target="_blank" rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}>🔗 abrir</a>
                           </span>
-                        )}
+                        ) : (
+                          // Localização não-http (rede/UNC): não vira <a>, mas o
+                          // indicador continua visível; caminho completo no tooltip.
+                          <span className="cel-meta">🔗 local</span>
+                        ))}
                       </span>
                     </td>
                   )
@@ -297,8 +310,10 @@ function AnexoModal({ company, docKey, cell, onClose, onSave }) {
         </div>
         <div className="field">
           <label>Link / localização do arquivo (rede, OneDrive, Google Drive)</label>
-          <input type="url" value={link} onChange={(e) => setLink(e.target.value)}
-            placeholder="https://drive.google.com/..." />
+          {/* type="text" (não "url"): caminhos de rede \\servidor\pasta e localizações
+              sem https:// também são válidos aqui; só links http(s) viram clicáveis. */}
+          <input type="text" value={link} onChange={(e) => setLink(e.target.value)}
+            placeholder={'https://drive.google.com/... ou \\\\servidor\\fiscal\\arquivo.pdf'} />
         </div>
         <div className="field">
           <label>Observações</label>

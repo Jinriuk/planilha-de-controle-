@@ -35,6 +35,7 @@ export default function Layout() {
               {naoLidas > 0 && <span className="nav-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
             {isAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
+            {isAdmin && <NavLink to="/app/clientes">Clientes</NavLink>}
             {isAdmin && <NavLink to="/app/auditoria">Auditoria</NavLink>}
             {isAdmin && <NavLink to="/app/usuarios">Usuários</NavLink>}
           </nav>

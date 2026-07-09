@@ -12,6 +12,7 @@ import Notificacoes from './pages/Notificacoes'
 import Dashboard from './pages/Dashboard'
 import Auditoria from './pages/Auditoria'
 import Usuarios from './pages/Usuarios'
+import Clientes from './pages/Clientes'
 
 // Redireciona a raiz conforme sessão.
 function RootRedirect() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="notificacoes" element={<Notificacoes />} />
           <Route element={<AdminRoute />}>
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="clientes" element={<Clientes />} />
             <Route path="auditoria" element={<Auditoria />} />
             <Route path="usuarios" element={<Usuarios />} />
           </Route>

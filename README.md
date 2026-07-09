@@ -26,6 +26,9 @@ Funcionalidades implementadas (checklist do §14 do spec):
 - Audit log gravando **toda** mudança (via trigger no banco — imutável)
 - `/app/auditoria`: cards de resumo + registro de mudanças (com filtros e paginação 50/pág) + abas Por Operador / Por Empresa
 - `/app/usuarios`: lista + convite + alterar papel + ativar/desativar
+- `/app/clientes` (admin): cadastro e edição de clientes pela interface —
+  código, razão social, CNPJ, grupo, tipo, regime, município/UF, obrigações
+  aplicáveis, responsável padrão e ativo/SAIU — sem depender de SQL/seed
 - RLS habilitado em todas as tabelas, com papéis `admin` / `operator`
 
 ---

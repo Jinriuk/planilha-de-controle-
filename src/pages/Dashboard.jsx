@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase, fetchAllRows } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import Spinner from '../components/Spinner'
@@ -30,6 +30,12 @@ export default function Dashboard() {
   const toast = useToast()
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL)
   const [loading, setLoading] = useState(true)
+  // Espelho do período p/ descartar respostas obsoletas + último período cujos
+  // dados chegaram com sucesso (evita exibir números de um período sob o rótulo
+  // de outro, inclusive no PDF).
+  const periodoRef = useRef(periodo)
+  periodoRef.current = periodo
+  const carregadoRef = useRef(null)
   const [companies, setCompanies] = useState([])
   const [apuracao, setApuracao] = useState([])   // período selecionado (com detalhes)
   const [apuracaoHist, setApuracaoHist] = useState([]) // últimos 6 períodos (leve)
@@ -61,13 +67,25 @@ export default function Dashboard() {
         .order('doc_key', { ascending: true })),
       supabase.from('parcelamentos').select('*'),
     ])
+    // Resposta obsoleta (usuário já trocou de competência): descarta.
+    if (periodo !== periodoRef.current) return
+    // Falha em qualquer consulta: nunca zera os indicadores (zeros seriam
+    // lidos — e impressos no PDF — como números reais). Se os dados na tela
+    // são deste mesmo período, mantém; senão segue no spinner e o refresh de
+    // 30s tenta de novo.
+    if ([c, ap, hist, ax, pc].some((r) => r.error)) {
+      toast('Erro ao atualizar o dashboard')
+      if (carregadoRef.current === periodo) setLoading(false)
+      return
+    }
     setCompanies(c.data || [])
     setApuracao(ap.data || [])
     setApuracaoHist(hist.data || [])
     setAnexos(ax.data || [])
     setParcelamentos(pc.data || [])
+    carregadoRef.current = periodo
     setLoading(false)
-  }, [periodo, periodos6])
+  }, [periodo, periodos6, toast])
 
   useEffect(() => {
     carregar(true)

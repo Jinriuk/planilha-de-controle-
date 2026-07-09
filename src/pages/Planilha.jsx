@@ -24,6 +24,10 @@ export default function Planilha() {
   const [companies, setCompanies] = useState([])
   const [equipe, setEquipe] = useState([])
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL)
+  // Espelho do período selecionado para descartar respostas obsoletas de
+  // fetch/poll que resolvem depois de o usuário já ter trocado a competência.
+  const periodoRef = useRef(periodo)
+  periodoRef.current = periodo
   const [valores, setValores] = useState({}) // { cod__task: {valor,nome,at,responsavel_nome,prazo,data_conclusao,observacoes} }
   const [resp, setResp] = useState({})
   const [loading, setLoading] = useState(true)
@@ -66,6 +70,7 @@ export default function Planilha() {
     ]).then(([c, p]) => {
       if (!active) return
       if (c.error) return toast('Erro ao carregar empresas')
+      if (p.error) toast('Erro ao carregar a equipe')
       setCompanies((c.data || []).sort((a, b) => (Number(a.cod) || 0) - (Number(b.cod) || 0)))
       setEquipe((p.data || []).filter((m) => m.ativo !== false))
     })
@@ -78,7 +83,7 @@ export default function Planilha() {
     const [ap, re] = await Promise.all([
       fetchAllRows((sb) =>
         sb.from('apuracao')
-          .select('company_cod, task_key, valor, updated_by_nome, updated_at, responsavel_nome, prazo, data_conclusao, observacoes')
+          .select('company_cod, task_key, valor, updated_by_nome, updated_at, responsavel_id, responsavel_nome, prazo, data_conclusao, observacoes')
           .eq('periodo', per)
           .order('company_cod', { ascending: true })
           .order('task_key', { ascending: true }) // desempate único p/ paginação estável
@@ -90,6 +95,10 @@ export default function Planilha() {
           .order('company_cod', { ascending: true })
       ),
     ])
+    // Resposta obsoleta: o usuário já trocou de competência enquanto o fetch
+    // estava em voo — aplicar sobrescreveria a grade do período novo com os
+    // dados do antigo (e cliques nesse intervalo gravariam valores errados).
+    if (per !== periodoRef.current) return
     if (ap.error || re.error) {
       toast('Erro ao carregar o período')
       setLoading(false)
@@ -101,6 +110,7 @@ export default function Planilha() {
         valor: r.valor || '',
         nome: r.updated_by_nome,
         at: r.updated_at,
+        responsavel_id: r.responsavel_id,
         responsavel_nome: r.responsavel_nome,
         prazo: r.prazo,
         data_conclusao: r.data_conclusao,
@@ -142,8 +152,8 @@ export default function Planilha() {
               ...prev,
               [k]: {
                 valor: n.valor || '', nome: n.updated_by_nome, at: n.updated_at,
-                responsavel_nome: n.responsavel_nome, prazo: n.prazo,
-                data_conclusao: n.data_conclusao, observacoes: n.observacoes,
+                responsavel_id: n.responsavel_id, responsavel_nome: n.responsavel_nome,
+                prazo: n.prazo, data_conclusao: n.data_conclusao, observacoes: n.observacoes,
               },
             }
           })
@@ -273,6 +283,7 @@ export default function Planilha() {
   }, [valores, resp, equipe])
 
   const empresaTemVencida = useCallback((c) => {
+    if (c.ativo === false) return false // SAIU não conta como vencida — coerente com o banner de alertas
     return TAREFAS.some((t) => atividadeVencida(valores[vkey(c.cod, t[0])]))
   }, [valores])
 
@@ -311,6 +322,7 @@ export default function Planilha() {
     let vencidas = 0
     let proximas = 0
     companies.forEach((c) => {
+      if (c.ativo === false) return // inativas (SAIU) não geram alerta — coerente com o Dashboard
       TAREFAS.forEach((t) => {
         const cell = valores[vkey(c.cod, t[0])]
         if (atividadeVencida(cell)) vencidas++
@@ -333,7 +345,9 @@ export default function Planilha() {
       const vals = TAREFAS.map((t) => CICLO_LABEL[vmap[t[0]] || ''])
       rows.push([c.cod, c.empresa, c.tipo || '', c.grupo || '', resp[c.cod]?.user_nome || '', ...vals, st])
     })
-    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    // ';' como separador: é o que o Excel pt-BR espera ao abrir CSV com duplo
+    // clique (com ',' todas as colunas caem na coluna A).
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n')
     const a = document.createElement('a')
     a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(csv)
     a.download = `controle_${periodo}.csv`
@@ -575,26 +589,32 @@ function LinhaEmpresa({ idx, company, valores, resp, onClick, onDetalhe }) {
 function DetalheModal({ company, taskKey, cell, equipe, onClose, onSave }) {
   const tarefa = TAREFAS.find((t) => t[0] === taskKey)
   const [valor, setValor] = useState(cell.valor || '')
-  const [respId, setRespId] = useState('')
-  const [respNome, setRespNome] = useState(cell.responsavel_nome || '')
+  // Responsável atual que não está (mais) na equipe ativa: aparece como opção
+  // própria ('__manter') para que abrir o modal e salvar não o apague sem querer.
+  const foraDaEquipe = !!cell.responsavel_nome &&
+    !equipe.some((e) => e.id === cell.responsavel_id || e.nome === cell.responsavel_nome)
+  const [respId, setRespId] = useState(() => {
+    if (cell.responsavel_id && equipe.some((e) => e.id === cell.responsavel_id)) return cell.responsavel_id
+    // Guard cell.responsavel_nome: sem ele, null === null casaria com um membro
+    // convidado ainda sem nome e o pré-selecionaria por acidente.
+    const m = cell.responsavel_nome && equipe.find((e) => e.nome === cell.responsavel_nome)
+    if (m) return m.id
+    return cell.responsavel_nome ? '__manter' : ''
+  })
   const [prazo, setPrazo] = useState(cell.prazo || '')
   const [conclusao, setConclusao] = useState(cell.data_conclusao || '')
   const [obs, setObs] = useState(cell.observacoes || '')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    const m = equipe.find((e) => e.nome === cell.responsavel_nome)
-    if (m) setRespId(m.id)
-  }, [equipe, cell.responsavel_nome])
-
   async function salvar(e) {
     e.preventDefault()
     setBusy(true)
+    const manter = respId === '__manter'
     const membro = equipe.find((m) => m.id === respId)
     await onSave({
       valor,
-      responsavel_id: respId || null,
-      responsavel_nome: membro?.nome || respNome || null,
+      responsavel_id: manter ? cell.responsavel_id ?? null : respId || null,
+      responsavel_nome: manter ? cell.responsavel_nome : (membro ? membro.nome || membro.email : null),
       prazo: prazo || null,
       data_conclusao: conclusao || null,
       observacoes: obs.trim() || null,
@@ -624,6 +644,7 @@ function DetalheModal({ company, taskKey, cell, equipe, onClose, onSave }) {
             <label>Responsável</label>
             <select value={respId} onChange={(e) => setRespId(e.target.value)}>
               <option value="">— sem responsável —</option>
+              {foraDaEquipe && <option value="__manter">{cell.responsavel_nome} (fora da equipe)</option>}
               {equipe.map((m) => <option key={m.id} value={m.id}>{m.nome || m.email}</option>)}
             </select>
           </div>
