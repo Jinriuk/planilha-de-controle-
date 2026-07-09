@@ -458,8 +458,8 @@ export default function Planilha() {
           <table className="planilha">
             <thead>
               <tr>
-                <th className="th-grupo-id" rowSpan={2} style={{ width: 32 }}>#</th>
-                <th className="th-grupo-id" rowSpan={2} style={{ width: 36 }}>Cód</th>
+                <th className="th-grupo-id col-idx" rowSpan={2} style={{ width: 32 }}>#</th>
+                <th className="th-grupo-id th-cod" rowSpan={2} style={{ width: 36 }}>Cód</th>
                 <th className="th-grupo-id th-emp" rowSpan={2}>Cliente</th>
                 <th className="th-grupo-id" rowSpan={2} style={{ width: 80 }}>Tipo</th>
                 <th className="th-grupo-id" rowSpan={2} style={{ width: 80 }}>Grupo</th>
@@ -524,8 +524,8 @@ function LinhaEmpresa({ idx, company, valores, resp, onClick, onDetalhe }) {
 
   return (
     <tr style={saiu ? { opacity: 0.55 } : undefined}>
-      <td className="td-num">{idx + 1}</td>
-      <td className="td-num" style={{ fontWeight: 600, color: '#475569' }}>{company.cod}</td>
+      <td className="td-num col-idx">{idx + 1}</td>
+      <td className="td-num td-cod" style={{ fontWeight: 600, color: '#475569' }}>{company.cod}</td>
       <td className="td-emp" title={`${company.empresa}${saiu ? ' — SAIU (inativa)' : ''}`}>
         {company.empresa}
         {saiu && <span className="tag-saiu"> (SAIU)</span>}

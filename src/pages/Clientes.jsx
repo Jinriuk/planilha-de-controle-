@@ -81,7 +81,7 @@ export default function Clientes() {
           <table className="planilha">
             <thead>
               <tr>
-                <th style={{ width: 44 }}>Cód</th>
+                <th className="th-cod" style={{ width: 44 }}>Cód</th>
                 <th className="th-emp">Empresa</th>
                 <th style={{ width: 120 }}>CNPJ</th>
                 <th style={{ width: 90 }}>Grupo</th>
@@ -97,7 +97,7 @@ export default function Clientes() {
             <tbody>
               {filtradas.map((c) => (
                 <tr key={c.cod} style={c.ativo === false ? { opacity: 0.55 } : undefined}>
-                  <td className="td-num" style={{ fontWeight: 600, color: '#475569' }}>{c.cod}</td>
+                  <td className="td-num td-cod" style={{ fontWeight: 600, color: '#475569' }}>{c.cod}</td>
                   <td className="td-emp" title={c.empresa}>{c.empresa}</td>
                   <td style={{ fontSize: 11 }}>{c.cnpj || '—'}</td>
                   <td className="td-grp">{c.grupo ? <span className="grp-chip">{c.grupo}</span> : ''}</td>

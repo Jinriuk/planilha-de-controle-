@@ -54,6 +54,32 @@ a { color: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
 }
 .nav-ico { font-size: 13px; line-height: 1; }
+/* Botão "Mais" (☰): só existe visualmente no mobile; no desktop os links
+   secundários (.nav-sec) ficam inline e o botão some. */
+.nav-mais {
+  display: none; background: none; border: none; color: #bcd3f0;
+  font-family: inherit; font-weight: 600; cursor: pointer;
+}
+
+/* ── SHEET (menu "Mais" no mobile) ── */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 450;
+  display: flex; align-items: flex-end;
+}
+.sheet {
+  background: #fff; width: 100%; border-radius: 16px 16px 0 0;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .3);
+  animation: sheet-in .18s ease-out;
+}
+@keyframes sheet-in { from { transform: translateY(30%); opacity: .5; } to { transform: none; opacity: 1; } }
+.sheet-handle { width: 42px; height: 4px; border-radius: 2px; background: var(--cinza3); margin: 4px auto 10px; }
+.sheet a {
+  display: flex; align-items: center; gap: 12px; padding: 13px 10px;
+  border-radius: 10px; font-size: 14px; font-weight: 600; color: #1e293b; text-decoration: none;
+}
+.sheet a.active { background: var(--azul3); color: var(--azul); }
+.sheet a .nav-ico { font-size: 20px; }
 .nav a:hover { background: rgba(255, 255, 255, .12); color: #fff; }
 .nav a.active { background: rgba(255, 255, 255, .18); color: #fff; }
 .nav-badge {
@@ -388,11 +414,14 @@ td.td-grp { font-size: 10px; }
   /* topo compacto (mantém 52px: a .barra gruda em top:52px) */
   .topo { padding: 0 10px; }
   .topo-sub, .badge-online, .online-wrap, .usuario-nome { display: none; }
-  .topo-titulo { font-size: 13px; }
+  .topo-titulo {
+    font-size: 12.5px; max-width: 54vw;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .topo-right { gap: 8px; }
   .topo-right .btn { padding: 5px 10px; font-size: 11px; }
 
-  /* nav → barra de abas inferior (estilo app) */
+  /* nav → barra de abas inferior (estilo app): só as abas principais + "Mais" */
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; margin: 0;
     background: var(--azul); z-index: 400;
@@ -401,13 +430,15 @@ td.td-grp { font-size: 10px; }
     box-shadow: 0 -3px 12px rgba(0, 0, 0, .28);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .nav a {
-    flex: 1 0 62px; display: flex; flex-direction: column; align-items: center;
+  .nav a, .nav-mais {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 3px; padding: 8px 2px 7px;
     border-radius: 0; font-size: 9.5px; font-weight: 600; position: relative;
   }
+  .nav a.nav-sec { display: none; } /* secundárias vivem no menu "Mais" */
   .nav a.active { background: rgba(255, 255, 255, .16); box-shadow: inset 0 3px 0 #86efac; }
   .nav-ico { font-size: 19px; }
+  .nav-txt { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-badge { position: absolute; top: 4px; right: calc(50% - 24px); margin: 0; }
   /* espaço para a barra inferior não cobrir o fim do conteúdo */
   main { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
@@ -427,14 +458,29 @@ td.td-grp { font-size: 10px; }
   .stats::-webkit-scrollbar { display: none; }
   .stat { white-space: nowrap; }
 
-  /* tabelas largas: rolagem suave + coluna do cliente fixa */
+  /* tabelas largas: rolagem suave + bloco fixo [Cód | Cliente].
+     A coluna # some e o Cód também fica sticky: sem isso, as colunas soltas
+     à esquerda apareciam "correndo" no canto atrás da coluna fixa. */
   .tabela-wrap { padding: 8px 8px 20px; -webkit-overflow-scrolling: touch; }
+  .col-idx { display: none; }
+  .th-cod, td.td-cod {
+    position: sticky; left: 0; width: 42px; min-width: 42px; max-width: 42px;
+  }
+  thead .th-cod { z-index: 20; }
+  td.td-cod { z-index: 5; }
   .th-emp, td.td-emp {
-    position: sticky; left: 0; min-width: 148px; max-width: 168px;
+    position: sticky; left: 42px; min-width: 138px; max-width: 158px;
   }
   thead .th-emp { z-index: 20; }
-  td.td-emp { z-index: 5; box-shadow: 3px 0 6px rgba(15, 23, 42, .10); }
-  td.td-emp { font-size: 11px; }
+  td.td-emp { z-index: 5; box-shadow: 3px 0 6px rgba(15, 23, 42, .10); font-size: 11px; }
+
+  /* cabeçalhos de coluna com respiro: podem quebrar linha em vez de espremer */
+  thead th { white-space: normal; line-height: 1.2; }
+
+  /* iOS dá zoom automático em campo com fonte < 16px — o "pulo" estranho ao
+     tocar num campo. 16px desativa esse comportamento. */
+  .barra input, .barra select,
+  .field input, .field select, .field textarea { font-size: 16px; }
 
   /* alvos de toque maiores nas células de status */
   .cel { min-width: 82px; padding: 8px 3px; }

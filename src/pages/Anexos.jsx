@@ -208,7 +208,7 @@ export default function Anexos() {
         <table className="planilha" style={{ minWidth: 1400 }}>
           <thead>
             <tr>
-              <th className="th-grupo-id" rowSpan={2} style={{ width: 36 }}>Cód</th>
+              <th className="th-grupo-id th-cod" rowSpan={2} style={{ width: 36 }}>Cód</th>
               <th className="th-grupo-id th-emp" rowSpan={2}>Cliente</th>
               {catSpans.map((c) => (
                 <th key={c.cat} className={DOC_CAT_HDR[c.cat]} colSpan={c.count} style={{ fontSize: 11 }}>
@@ -227,7 +227,7 @@ export default function Anexos() {
           <tbody>
             {filtradas.map((c) => (
               <tr key={c.cod} style={c.ativo === false ? { opacity: 0.55 } : undefined}>
-                <td className="td-num" style={{ fontWeight: 600, color: '#475569' }}>{c.cod}</td>
+                <td className="td-num td-cod" style={{ fontWeight: 600, color: '#475569' }}>{c.cod}</td>
                 <td className="td-emp" title={c.empresa}>
                   {c.empresa}{c.ativo === false && <span className="tag-saiu"> (SAIU)</span>}
                 </td>
