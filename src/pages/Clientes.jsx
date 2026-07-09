@@ -5,9 +5,10 @@ import Spinner from '../components/Spinner'
 
 const TIPOS = ['Comércio', 'Serviços', 'Comércio / Serviços']
 
-// Cadastro de clientes (admin): incluir/editar empresas sem depender de SQL.
-// Não há exclusão física — apagar uma empresa levaria junto (cascade) todo o
-// histórico de apuração/anexos/parcelamentos; o caminho é marcá-la como SAIU.
+// Cadastro de clientes (admin): incluir/editar/excluir empresas sem SQL.
+// Excluir apaga em cascata o histórico de apuração/anexos/parcelamentos do
+// cliente (a trilha de auditoria não tem FK e permanece), por isso a exclusão
+// exige confirmação dupla; para cliente que apenas saiu, o caminho é o SAIU.
 export default function Clientes() {
   const toast = useToast()
   const [companies, setCompanies] = useState([])
@@ -54,6 +55,35 @@ export default function Clientes() {
     setModal(null)
     carregar()
     return true
+  }
+
+  async function excluirCliente(company) {
+    // Mostra o tamanho do estrago antes de confirmar: quanto histórico existe.
+    const [a, x, p] = await Promise.all([
+      supabase.from('apuracao').select('*', { count: 'exact', head: true }).eq('company_cod', company.cod),
+      supabase.from('anexos').select('*', { count: 'exact', head: true }).eq('company_cod', company.cod),
+      supabase.from('parcelamentos').select('*', { count: 'exact', head: true }).eq('company_cod', company.cod),
+    ])
+    const na = a.count || 0
+    const nx = x.count || 0
+    const np = p.count || 0
+    const temHistorico = na + nx + np > 0
+    const aviso = temHistorico
+      ? `ATENÇÃO — excluir ${company.cod} · ${company.empresa} apaga PERMANENTEMENTE:\n\n` +
+        `· ${na} registro(s) de atividade da planilha\n· ${nx} registro(s) de anexos\n· ${np} parcelamento(s)\n\n` +
+        `Se o cliente apenas saiu do escritório, prefira desmarcar "Cliente ativo" (SAIU), que preserva o histórico.\n\nExcluir mesmo assim?`
+      : `Excluir o cliente ${company.cod} · ${company.empresa}?\n\nEle não possui histórico registrado.`
+    if (!window.confirm(aviso)) return
+    if (temHistorico) {
+      const digitado = window.prompt(`Para confirmar a exclusão DEFINITIVA, digite o código do cliente (${company.cod}):`)
+      if (digitado === null) return
+      if (digitado.trim() !== String(company.cod)) return toast('Código não confere — exclusão cancelada')
+    }
+    const { error } = await supabase.from('companies').delete().eq('cod', company.cod)
+    if (error) return toast('Erro ao excluir o cliente')
+    toast('Cliente excluído')
+    setModal(null)
+    carregar()
   }
 
   if (loading) return <Spinner full label="Carregando clientes..." />
@@ -126,13 +156,14 @@ export default function Clientes() {
       </div>
 
       {modal && (
-        <ClienteModal company={modal.company} onClose={() => setModal(null)} onSave={salvar} />
+        <ClienteModal company={modal.company} onClose={() => setModal(null)} onSave={salvar}
+          onDelete={excluirCliente} />
       )}
     </div>
   )
 }
 
-function ClienteModal({ company, onClose, onSave }) {
+function ClienteModal({ company, onClose, onSave, onDelete }) {
   const toast = useToast()
   const isNovo = !company
   const [form, setForm] = useState({
@@ -267,7 +298,13 @@ function ClienteModal({ company, onClose, onSave }) {
           </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {!isNovo && (
+            <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }}
+              disabled={busy} onClick={() => onDelete(company)}>
+              🗑 Excluir
+            </button>
+          )}
           <button type="button" className="btn btn-sec" onClick={onClose}>Cancelar</button>
           <button type="submit" className="btn btn-prim" disabled={busy}>
             {busy ? 'Salvando...' : isNovo ? 'Cadastrar' : 'Salvar'}
