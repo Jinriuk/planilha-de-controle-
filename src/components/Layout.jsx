@@ -27,17 +27,17 @@ export default function Layout() {
             <div className="topo-sub">AM Assessoria e Consultoria Tributária</div>
           </div>
           <nav className="nav">
-            <NavLink to="/app/planilha">Planilha</NavLink>
-            <NavLink to="/app/anexos">Anexos</NavLink>
-            <NavLink to="/app/parcelamentos">Parcelamentos</NavLink>
+            <NavLink to="/app/planilha"><span className="nav-ico">📋</span><span className="nav-txt">Planilha</span></NavLink>
+            <NavLink to="/app/anexos"><span className="nav-ico">📎</span><span className="nav-txt">Anexos</span></NavLink>
+            <NavLink to="/app/parcelamentos"><span className="nav-ico">💰</span><span className="nav-txt">Parcelam.</span></NavLink>
             <NavLink to="/app/notificacoes">
-              Notificações
+              <span className="nav-ico">🔔</span><span className="nav-txt">Notificações</span>
               {naoLidas > 0 && <span className="nav-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>}
             </NavLink>
-            {isAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
-            {isAdmin && <NavLink to="/app/clientes">Clientes</NavLink>}
-            {isAdmin && <NavLink to="/app/auditoria">Auditoria</NavLink>}
-            {isAdmin && <NavLink to="/app/usuarios">Usuários</NavLink>}
+            {isAdmin && <NavLink to="/app/dashboard"><span className="nav-ico">📊</span><span className="nav-txt">Dashboard</span></NavLink>}
+            {isAdmin && <NavLink to="/app/clientes"><span className="nav-ico">🏢</span><span className="nav-txt">Clientes</span></NavLink>}
+            {isAdmin && <NavLink to="/app/auditoria"><span className="nav-ico">🧾</span><span className="nav-txt">Auditoria</span></NavLink>}
+            {isAdmin && <NavLink to="/app/usuarios"><span className="nav-ico">👥</span><span className="nav-txt">Usuários</span></NavLink>}
           </nav>
         </div>
 

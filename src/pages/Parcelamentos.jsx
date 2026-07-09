@@ -10,7 +10,7 @@ import {
 import { calcParcelamento, vencimentoProximo, vencimentoAtrasado } from '../lib/parc'
 
 export default function Parcelamentos() {
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const toast = useToast()
   const nome = profile?.nome || user?.email || ''
 
@@ -187,7 +187,8 @@ export default function Parcelamentos() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sec" onClick={() => setModal(p)}>✎ Editar</button>
-                        <button className="btn btn-danger" onClick={() => excluir(p)}>Excluir</button>
+                        {/* RLS (0010) só permite DELETE a admins — o botão segue a mesma regra */}
+                        {isAdmin && <button className="btn btn-danger" onClick={() => excluir(p)}>Excluir</button>}
                       </div>
                     </td>
                   </tr>
